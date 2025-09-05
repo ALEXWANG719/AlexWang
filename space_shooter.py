@@ -48,10 +48,12 @@ class Star:
 
 class Player:
     """Player spaceship class"""
-    def __init__(self, x, y):
+    def __init__(self, x, y, player_id=1):
         self.x = x
         self.y = y
         self.speed = 5
+        self.player_id = player_id
+        self.color = CYAN if player_id == 1 else GREEN  # Different colors for each player
         
         # Load player sprite
         try:
@@ -77,11 +79,17 @@ class Player:
     def draw(self, screen):
         """Draw the player spaceship"""
         if self.sprite:
-            # Draw the loaded sprite
-            screen.blit(self.sprite, (self.x, self.y))
+            # Draw the loaded sprite with color tinting
+            if self.player_id == 2:
+                # Create a green-tinted version for player 2
+                tinted_sprite = self.sprite.copy()
+                tinted_sprite.fill((0, 255, 0, 128), special_flags=pygame.BLEND_MULT)
+                screen.blit(tinted_sprite, (self.x, self.y))
+            else:
+                screen.blit(self.sprite, (self.x, self.y))
         else:
             # Fallback to simple pixel-style spaceship
-            pygame.draw.polygon(screen, CYAN, [
+            pygame.draw.polygon(screen, self.color, [
                 (self.x + self.width // 2, self.y),  # Top point
                 (self.x, self.y + self.height),      # Bottom left
                 (self.x + self.width // 4, self.y + self.height * 0.7),  # Left wing
@@ -89,8 +97,9 @@ class Player:
                 (self.x + self.width, self.y + self.height)  # Bottom right
             ])
             # Ship body
-            pygame.draw.rect(screen, BLUE, (self.x + self.width // 3, self.y + self.height // 3, 
-                                           self.width // 3, self.height // 2))
+            body_color = BLUE if self.player_id == 1 else (0, 150, 0)
+            pygame.draw.rect(screen, body_color, (self.x + self.width // 3, self.y + self.height // 3, 
+                                                 self.width // 3, self.height // 2))
     
     def get_rect(self):
         """Get collision rectangle"""
@@ -269,8 +278,9 @@ class Game:
         self.invulnerable_timer = 0
         self.invulnerable_duration = 120  # 2 seconds of invulnerability after respawn
         
-        # Game objects
-        self.player = Player(SCREEN_WIDTH // 2 - 20, SCREEN_HEIGHT - 50)
+        # Game objects - Two players
+        self.player1 = Player(SCREEN_WIDTH // 2 - 60, SCREEN_HEIGHT - 50, 1)
+        self.player2 = Player(SCREEN_WIDTH // 2 + 20, SCREEN_HEIGHT - 50, 2)
         self.bullets = []
         self.enemies = []
         self.enemy_bullets = []
@@ -302,10 +312,15 @@ class Game:
             if event.type == pygame.QUIT:
                 return False
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE and self.state == GameState.PLAYING:
-                    # Shoot bullet
-                    bullet = Bullet(self.player.x + self.player.width // 2 - 2, self.player.y)
-                    self.bullets.append(bullet)
+                if self.state == GameState.PLAYING:
+                    if event.key == pygame.K_SPACE:
+                        # Player 1 shoots
+                        bullet = Bullet(self.player1.x + self.player1.width // 2 - 2, self.player1.y)
+                        self.bullets.append(bullet)
+                    elif event.key == pygame.K_RETURN:
+                        # Player 2 shoots
+                        bullet = Bullet(self.player2.x + self.player2.width // 2 - 2, self.player2.y)
+                        self.bullets.append(bullet)
                 elif event.key == pygame.K_r and self.state == GameState.GAME_OVER:
                     # Restart game
                     self.restart_game()
@@ -318,17 +333,30 @@ class Game:
             
         # Handle player movement
         keys = pygame.key.get_pressed()
-        dx = dy = 0
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-            dx = -1
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-            dx = 1
-        if keys[pygame.K_UP] or keys[pygame.K_w]:
-            dy = -1
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-            dy = 1
-            
-        self.player.move(dx, dy)
+        
+        # Player 1 movement (Arrow keys)
+        dx1 = dy1 = 0
+        if keys[pygame.K_LEFT]:
+            dx1 = -1
+        if keys[pygame.K_RIGHT]:
+            dx1 = 1
+        if keys[pygame.K_UP]:
+            dy1 = -1
+        if keys[pygame.K_DOWN]:
+            dy1 = 1
+        self.player1.move(dx1, dy1)
+        
+        # Player 2 movement (WASD keys)
+        dx2 = dy2 = 0
+        if keys[pygame.K_a]:
+            dx2 = -1
+        if keys[pygame.K_d]:
+            dx2 = 1
+        if keys[pygame.K_w]:
+            dy2 = -1
+        if keys[pygame.K_s]:
+            dy2 = 1
+        self.player2.move(dx2, dy2)
         
         # Update bullets
         for bullet in self.bullets[:]:
@@ -399,27 +427,27 @@ class Game:
                     self.score += 10
                     break
         
-        # Check if player is invulnerable
+        # Check if players are invulnerable
         if self.invulnerable_timer > 0:
             self.invulnerable_timer -= 1
             return  # Skip collision checks if invulnerable
         
-        # Player vs Enemy collisions
+        # Check collisions for both players
         for enemy in self.enemies:
-            if self.player.get_rect().colliderect(enemy.get_rect()):
+            if self.player1.get_rect().colliderect(enemy.get_rect()) or self.player2.get_rect().colliderect(enemy.get_rect()):
                 self.lose_life()
                 return
         
         # Player vs Enemy Bullet collisions
         for bullet in self.enemy_bullets[:]:
-            if self.player.get_rect().colliderect(bullet.get_rect()):
+            if self.player1.get_rect().colliderect(bullet.get_rect()) or self.player2.get_rect().colliderect(bullet.get_rect()):
                 self.enemy_bullets.remove(bullet)  # Remove the bullet that hit
                 self.lose_life()
                 return
         
         # Player vs Asteroid collisions
         for asteroid in self.asteroids:
-            if self.player.get_rect().colliderect(asteroid.get_rect()):
+            if self.player1.get_rect().colliderect(asteroid.get_rect()) or self.player2.get_rect().colliderect(asteroid.get_rect()):
                 self.lose_life()
                 return
     
@@ -429,8 +457,9 @@ class Game:
         if self.lives <= 0:
             self.state = GameState.GAME_OVER
         else:
-            # Respawn player
-            self.player = Player(SCREEN_WIDTH // 2 - 20, SCREEN_HEIGHT - 50)
+            # Respawn both players
+            self.player1 = Player(SCREEN_WIDTH // 2 - 60, SCREEN_HEIGHT - 50, 1)
+            self.player2 = Player(SCREEN_WIDTH // 2 + 20, SCREEN_HEIGHT - 50, 2)
             self.invulnerable_timer = self.invulnerable_duration
             # Clear all bullets and enemies for a fresh start (keep stars)
             self.bullets = []
@@ -448,12 +477,13 @@ class Game:
         
         if self.state == GameState.PLAYING:
             # Draw game objects
-            # Draw player with invulnerability effect
+            # Draw players with invulnerability effect
             if self.invulnerable_timer > 0 and (self.invulnerable_timer // 10) % 2 == 0:
                 # Flash effect during invulnerability
-                pass  # Don't draw player when flashing
+                pass  # Don't draw players when flashing
             else:
-                self.player.draw(self.screen)
+                self.player1.draw(self.screen)
+                self.player2.draw(self.screen)
             
             for bullet in self.bullets:
                 bullet.draw(self.screen)
@@ -464,11 +494,13 @@ class Game:
             for asteroid in self.asteroids:
                 asteroid.draw(self.screen)
             
-            # Draw score and lives
+            # Draw score, lives, and controls
             score_text = self.font.render(f"Score: {self.score}", True, WHITE)
             lives_text = self.font.render(f"Lives: {self.lives}", True, WHITE)
+            controls_text = self.font.render("P1: Arrows+Space | P2: WASD+Enter", True, WHITE)
             self.screen.blit(score_text, (10, 10))
             self.screen.blit(lives_text, (10, 50))
+            self.screen.blit(controls_text, (10, 90))
             
         elif self.state == GameState.GAME_OVER:
             # Draw game over screen
@@ -496,7 +528,8 @@ class Game:
         self.score = 0
         self.lives = 3
         self.invulnerable_timer = 0
-        self.player = Player(SCREEN_WIDTH // 2 - 20, SCREEN_HEIGHT - 50)
+        self.player1 = Player(SCREEN_WIDTH // 2 - 60, SCREEN_HEIGHT - 50, 1)
+        self.player2 = Player(SCREEN_WIDTH // 2 + 20, SCREEN_HEIGHT - 50, 2)
         self.bullets = []
         self.enemies = []
         self.enemy_bullets = []
