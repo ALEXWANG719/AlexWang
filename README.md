@@ -41,3 +41,4 @@ python space_shooter.py
 - Bullets move upward and destroy enemies on contact
 
 Enjoy the game!
+today is sep 5th
